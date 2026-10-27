@@ -1,0 +1,5 @@
+include .env.example RESEARCH_DESIGN.md FUTURE_RESEARCH.md requirements-lock.txt
+include .streamlit/config.toml
+recursive-include configs *.yaml
+recursive-include docs *.md
+recursive-include tests *.py

@@ -1,0 +1,9 @@
+# D: same shared mechanics, administrative actions available to everyone.
+condition: D
+config_version: '1.0'
+backend: mock
+model: gpt-4.1-mini-2025-04-14
+n_agents: 4
+days: 2
+rounds_per_day: 2
+seed: 42
