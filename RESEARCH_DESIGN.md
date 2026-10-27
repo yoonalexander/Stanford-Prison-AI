@@ -1,8 +1,8 @@
-# Research design · v1.0
+# Research design · v1.1
 
 ## Scope and primary question
 
-Can unequal administrative authority change observable restrictive/cooperative decisions among autonomous language-model agents when no agent is instructed to behave harmfully? This is a computational behavioural study, inspired by a historical question about institutions; it does not replicate human participants, establish human psychological mechanisms, or validate historical claims about the 1971 study. No real LLM results are included in this MVP.
+Can unequal administrative authority change observable restrictive/cooperative decisions among autonomous language-model agents when no agent is instructed to behave harmfully? This is a computational behavioural study, inspired by a historical question about institutions; it does not replicate human participants, establish human psychological mechanisms, or validate historical claims about the 1971 study. Real local-model engineering smoke traces are not hypothesis-testing results.
 
 The primary outcome is the rate of successfully enacted restrictive decisions per 100 agent turns. A restrictive decision is a discretionary amenity restriction or approval of a rule with a daily leisure-credit cap below the base cap of three. This outcome is a narrow operational proxy; its presence alone does not prove harm, coercive intent, domination, or an emergent cognitive state. Record proposal and permission-denial rates separately.
 
@@ -28,6 +28,8 @@ The neutral-authority contrast is B − D. The authority main effect is (A + B �
 ## Units, randomization and generation
 
 The experiment run is the replication unit. Agents and turns within a run are dependent. The scheduler shuffles all residents each round using a deterministic RNG stream independent of trait/group initialization. Groups are balanced and assigned randomly; continuous personality traits and preferred activities are randomized without conditioning on authority. Each resident receives one independent model call per opportunity with its own visible history/memory.
+
+Version 0.2 permits different providers/models per resident, including genuine local Ollama inference without API charges. Homogeneous studies can use the same free local model for all residents. Heterogeneous studies must preregister and counterbalance model-to-agent assignments independently of authority, preserve the same roster within each A/B/C/D seed block, and treat roster composition as an additional moderator. Provenance captures profiles, actual request attribution and local model digests/quantization/runtime. A run mixing mock fixtures and LLMs is a separate mixed-synthetic evidence class. Prompt version 1.1 supplies the same action schema to all backends; it must not be pooled uncritically with prompt-1.0 runs.
 
 Use multiple seed blocks containing all four conditions. Counterbalance the order in which condition runs are sent to the provider, hold the pinned model and generation parameters fixed, and record calendar time and provider-returned model metadata. Seeds reproduce the local engine and mock fixture stream. API sampling, provider infrastructure, safety behavior and model updates can still change real outputs. Do not promise deterministic real LLM replications from a seed.
 

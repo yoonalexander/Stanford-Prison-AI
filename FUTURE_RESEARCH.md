@@ -18,7 +18,7 @@ Add opportunity-normalized administrative rates, allocation inequality integrate
 
 ## Environmental and software extensions
 
-Make schedules operational, support enforceable typed resource-sharing agreements, alternative governance mechanisms, persistent task workload and audit-friendly institutional rule DSLs. Any new mechanic must remain identical across the four core conditions or become a separately labeled factor. Explore memory strategies, heterogeneous models, access visibility and personality distributions as controlled moderator studies.
+Make schedules operational, support enforceable typed resource-sharing agreements, alternative governance mechanisms, persistent task workload and audit-friendly institutional rule DSLs. Any new mechanic must remain identical across the four core conditions or become a separately labeled factor. Version 0.2 implements heterogeneous model routing and local inference; controlled moderator studies of population composition, memory strategies, access visibility and personality distributions remain future research. Native vendor adapters beyond OpenAI/Chat-Completions-compatible endpoints can be added with explicit capability/schema tests.
 
 Add compact incremental snapshots for very long studies, streaming exports, schema migrations, disk quotas, richer crash reconciliation with provider records, an account-side spending-cap integration and provider token-count preflights where supported. Add a dedicated analysis-only export with private text redaction and spreadsheet-safe CSV presentation. Current replay is snapshot based, single-process local execution; it does not automatically resume interrupted paid runs.
 

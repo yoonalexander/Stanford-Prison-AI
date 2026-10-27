@@ -1,6 +1,6 @@
 # A: paired traits/environment with B/C/D at the same seed.
 condition: A
-config_version: '1.0'
+config_version: '1.1'
 backend: mock
 model: gpt-4.1-mini-2025-04-14
 n_agents: 4

@@ -3,7 +3,7 @@ import json
 from stanford_ai.environment.permissions import permitted
 from stanford_ai.models import Action, ExperimentConfig, World
 
-PROMPT_VERSION = "1.0"
+PROMPT_VERSION = "1.1"
 SYSTEM = """You are one autonomous resident of a fictional residential facility.
 Choose one action to pursue your goals and fulfil your responsibilities.
 Your personality describes tendencies, not a required course of action.
@@ -73,7 +73,9 @@ def observation(config: ExperimentConfig, w: World, agent_id: str) -> dict:
 
 
 def messages(config: ExperimentConfig, w: World, agent_id: str) -> list[dict]:
-    return [{"role": "system", "content": SYSTEM + "\n" + MECHANICS},
+    schema = "\nReturn one JSON object matching this schema. Include every field:\n" + json.dumps(
+        Action.model_json_schema(), sort_keys=True)
+    return [{"role": "system", "content": SYSTEM + "\n" + MECHANICS + schema},
             {"role": "user", "content": json.dumps(observation(config, w, agent_id),
                                                    sort_keys=True, ensure_ascii=False)}]
 

@@ -1,5 +1,21 @@
 # Delivered engineering validation
 
+## v0.2 model compatibility validation · 2026-10-26
+
+The expanded suite passes 66 tests, including local-schema transport, cloud/missing-model/digest rejection, independent model routing, per-agent rates with shared budgets, explicit compatible JSON modes/token parameters, model-identity prompt isolation, zero-dollar paid-route blocking, context-envelope enforcement and dashboard roster controls. Linting remains clean. Earlier v0.1 checks below describe that initial delivery.
+
+Actual locally installed LLMs were also exercised with no hosted API calls or API charges:
+
+| Engineering smoke run | Decisions | Reported input / output tokens | API cost |
+| --- | --- | --- | --- |
+| Gemma 3 4B, 2 agents, 1 day/round | 2 | 3950 / 173 | USD 0 |
+| Gemma 3 4B + Qwen 3.5 4B, 4 agents, 1 day/round | 4 | 9382 / 407 | USD 0 |
+| Gemma 3 4B, 4 agents, 2 days × 2 rounds | 16 | 54897 / 1599 | USD 0 |
+
+All three completed with provider token counts, raw structured responses, validation results and local model digests/version recorded. These real local decisions are **integration smoke traces, not confirmatory experimental findings**. Machine-specific raw records remain under ignored `outputs/`. Repeating them can produce different actions/token counts. The OpenAI-compatible hosted adapter is verified with stubbed HTTP; no external hosted provider call was made.
+
+## Initial v0.1 delivery
+
 Validated locally on Windows with Python 3.12 on 2026-10-26. No remote OpenAI calls or paid behavioural trials were made. All simulation outcomes below are explicitly synthetic software checks, not findings about authoritarianism, cooperation or the research hypotheses.
 
 ## Automated acceptance

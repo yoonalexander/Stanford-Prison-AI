@@ -1,0 +1,30 @@
+# Example only. Supply credentials via environment variables, verify prices and replace endpoint/model.
+# Unassigned agents use default local Gemma; agent_01 uses official OpenAI; agent_02 another endpoint.
+condition: B
+backend: ollama
+model: gemma3:4b
+n_agents: 4
+days: 1
+rounds_per_day: 1
+budget_usd: 0.25
+model_profiles:
+  openai_model:
+    backend: openai
+    model: gpt-4.1-mini-2025-04-14
+    api_key_env: OPENAI_API_KEY
+    input_usd_per_million: 0.40
+    output_usd_per_million: 1.60
+    pricing_confirmed: true  # Verify current rates before use.
+  other_model:
+    backend: openai_compatible
+    model: REPLACE_WITH_PROVIDER_MODEL
+    base_url: https://your-provider.example/v1
+    api_key_env: PROVIDER_API_KEY
+    input_usd_per_million: 1.0  # Illustrative placeholders, not a provider price.
+    output_usd_per_million: 1.0
+    pricing_confirmed: false  # Set true only after replacing/verifying these values.
+    output_mode: json_schema  # Use json_object explicitly only if strict schema is unsupported.
+    token_limit_field: max_tokens
+agent_models:
+  agent_01: openai_model
+  agent_02: other_model

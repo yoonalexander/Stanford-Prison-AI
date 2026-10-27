@@ -50,3 +50,14 @@ def test_setup_starts_background_mock_experiment(tmp_path, monkeypatch):
     assert runs and runs[0]["status"] == "completed"
     app.run(timeout=20)
     assert not app.exception
+
+
+def test_local_and_per_agent_model_controls_render(tmp_path, monkeypatch):
+    monkeypatch.setenv("STANFORD_AI_DB", str(tmp_path / "setup.sqlite"))
+    app = AppTest.from_file(str(APP)).run(timeout=20)
+    next(s for s in app.selectbox if s.label == "Decision backend").select("ollama").run(timeout=20)
+    assert not app.exception
+    assert next(x for x in app.number_input if x.label == "Maximum estimated spend (USD)").value == 0
+    next(x for x in app.checkbox if x.label == "Assign different models to individual agents").check().run(timeout=20)
+    assert not app.exception
+    assert any("Model profiles" in m.value for m in app.markdown)

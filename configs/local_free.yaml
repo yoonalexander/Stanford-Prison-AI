@@ -1,0 +1,16 @@
+# Real local LLM inference. Requires Ollama with gemma3:4b installed; no API key or API fees.
+condition: B
+config_version: '1.1'
+backend: ollama
+model: gemma3:4b
+base_url: http://127.0.0.1:11434
+n_agents: 4
+days: 2
+rounds_per_day: 2
+seed: 42
+budget_usd: 0
+max_requests: 100
+max_tokens: 1000000
+max_output_tokens: 400
+local_context_tokens: 32768
+timeout_seconds: 120

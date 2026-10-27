@@ -9,9 +9,9 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from dotenv import load_dotenv
-from pydantic import ValidationError
 
 from stanford_ai.dashboard.jobs import Jobs
+from stanford_ai.dashboard.setup import render_setup
 from stanford_ai.environment.permissions import matrix
 from stanford_ai.experiments.analysis import factorial_contrasts
 from stanford_ai.experiments.design import CONDITIONS
@@ -79,8 +79,9 @@ def live(path, selected):
             st.info("The experiment is starting. Its first event will appear here.")
             return
         world = store.replay(selected)
-        st.write(f"**{run['status']}** · {CONDITIONS[run['config']['condition']]} · "
-                 f"{run['config']['backend']}")
+        config = ExperimentConfig.model_validate(run["config"])
+        st.write(f"**{run['status']}** · {CONDITIONS[config.condition]} · "
+                 f"{config.backend_summary} · {config.evidence_class}")
         if run["reason"]:
             st.warning(run["reason"])
         usage = run["usage"]
@@ -90,64 +91,14 @@ def live(path, selected):
         facility(world)
         st.subheader("Latest interactions")
         st.caption("Observer view includes private conversations. Agents receive only their permitted view.")
-        frame = action_frame(world)
+        frame = action_frame(world, config)
         st.dataframe(frame.tail(30).iloc[::-1], hide_index=True, width="stretch")
         with st.expander("Conflicts and negotiations"):
             st.json({"disputes": world.disputes, "agreements": world.agreements})
 
 
 def setup(path):
-    st.subheader("Configure a controlled run")
-    with st.form("setup"):
-        left, right = st.columns(2)
-        with left:
-            condition = st.selectbox("Condition", list(CONDITIONS), index=1,
-                                     format_func=lambda x: f"{x} · {CONDITIONS[x]}")
-            backend = st.selectbox("Decision backend", ["mock", "openai"],
-                                   help="Mock choices are synthetic engineering fixtures.")
-            model = st.text_input("OpenAI model ID", "gpt-4.1-mini-2025-04-14")
-            n_agents = st.number_input("Residents (even; split equally)", 2, 100, 4, 2)
-            days = st.number_input("Simulated days", 1, 100, 2)
-            rounds = st.number_input("Rounds per day", 1, 20, 2)
-            seed = st.number_input("Random seed", 0, 2**32 - 1, 42)
-        with right:
-            budget = st.number_input("Maximum estimated spend (USD)", 0.01, 1000.0, 1.0, 0.25)
-            requests = st.number_input("Maximum requests (including retries)", 1, 100000, 100)
-            tokens = st.number_input("Maximum accounted tokens", 1, 100000000, 250000)
-            output = st.number_input("Maximum output tokens per call", 128, 4096, 400)
-            input_rate = st.number_input("Input USD per million tokens", 0.0, 1000.0, 0.4)
-            output_rate = st.number_input("Output USD per million tokens", 0.0, 1000.0, 1.6)
-            pricing = st.checkbox("I verified these rates for the selected model (required for OpenAI)")
-        with st.expander("Generation and memory controls"):
-            temperature = st.number_input("Temperature", 0.0, 2.0, 0.7, 0.1)
-            omit_temp = st.checkbox("Omit temperature for models that do not support it")
-            memory_window = st.number_input("Detailed memories retained per resident", 1, 100, 12)
-            history_window = st.number_input("Recent visible events per observation", 1, 100, 12)
-        st.caption(f"Planned action opportunities: {int(n_agents * days * rounds):,}. "
-                   "Budgets may stop the run early. Daily time advances immediately.")
-        start = st.form_submit_button("Start experiment", type="primary")
-    preview = ExperimentConfig(condition=condition)
-    st.caption("Permission matrix for this condition (independent of role labels)")
-    st.dataframe(pd.DataFrame({g: {a: a in actions for a in sorted(set(sum(matrix(preview).values(), [])))}
-                               for g, actions in matrix(preview).items()}), width="stretch")
-    if start:
-        try:
-            cfg = ExperimentConfig(condition=condition, backend=backend, model=model,
-                n_agents=int(n_agents), days=int(days), rounds_per_day=int(rounds), seed=int(seed),
-                budget_usd=budget, max_requests=int(requests), max_tokens=int(tokens),
-                max_output_tokens=int(output), input_usd_per_million=input_rate,
-                output_usd_per_million=output_rate, pricing_confirmed=pricing,
-                temperature=None if omit_temp else temperature,
-                memory_window=int(memory_window), history_window=int(history_window))
-            if backend == "openai" and not os.getenv("OPENAI_API_KEY"):
-                st.error("Set OPENAI_API_KEY in .env or your environment, then restart the dashboard.")
-                return
-            job = jobs().start(cfg, path)
-            st.session_state["selected_run"] = job.run_id
-            st.success(f"Started {job.run_id}. Open Live simulation to observe the run.")
-            st.rerun()
-        except (ValidationError, ValueError) as exc:
-            st.error(str(exc))
+    render_setup(path, jobs())
 
 
 def profiles(world, config):
@@ -156,6 +107,11 @@ def profiles(world, config):
     st.write(f"**Group {agent.group}** · " + ("Guard" if agent.group == "A" else "Prisoner")
              if config.explicit_labels else f"**Group {agent.group}**")
     st.write("Goals", agent.goals)
+    identity = config.profile_for(agent_id)
+    st.write(f"**Decision model:** {identity.backend} / {identity.model} · "
+             f"profile {config.agent_models.get(agent_id, 'default')}")
+    with st.expander("Model connection and generation settings (observer only)"):
+        st.json(identity.model_dump(mode="json"))
     col1, col2 = st.columns(2)
     with col1:
         traits = pd.DataFrame({"trait": list(agent.personality.model_dump()),
@@ -168,7 +124,7 @@ def profiles(world, config):
         st.json(agent.relationships)
     with st.expander("Resident-visible memory and compressed counts"):
         st.json({"summary": agent.memory_summary, "recent": agent.memory})
-    frame = action_frame(world)
+    frame = action_frame(world, config)
     own = frame[frame.actor == agent_id]
     st.dataframe(own, hide_index=True, width="stretch")
     if not own.empty:
@@ -195,7 +151,8 @@ def analytics(store, run_id, world):
         st.plotly_chart(px.bar(distribution, x="resident", y="credits", color="group",
                                 color_discrete_map={"A": "#237C83", "B": "#B86632"},
                                 title="Today's cumulative credit allocations"), width="stretch")
-    frame = action_frame(world)
+    config = ExperimentConfig.model_validate(store.run(run_id)["config"])
+    frame = action_frame(world, config)
     if not frame.empty:
         group = frame.groupby(["day", "group"])[["restrictive", "cooperative", "resistant"]].sum()
         st.plotly_chart(px.line(group.reset_index(), x="day", y="cooperative", color="group",
@@ -207,6 +164,10 @@ def analytics(store, run_id, world):
             resistance=("resistant", "mean"), messages=("action", lambda s: sum(s == "communicate")))
         st.write("Initial versus later observed days (descriptive; requires multiple days)")
         st.dataframe(summary, width="stretch")
+    st.write("Agent model roster (observer only)")
+    st.dataframe(pd.DataFrame([{"agent": actor, "group": world.agents[actor].group,
+        "backend": row["backend"], "model": row["model"], "profile": row["profile"]}
+        for actor, row in config.resolved_models().items()]), hide_index=True, width="stretch")
     st.dataframe(metrics, hide_index=True, width="stretch")
 
 
@@ -219,8 +180,10 @@ def comparison(store):
     if data.empty:
         st.info("Select completed runs. Use several seeds per condition for variability.")
         return
-    st.warning("Mock and OpenAI runs are separate evidence classes. Model, duration, agent count, "
-               "generation settings and budgets must also match for a controlled comparison.")
+    st.warning("Synthetic, mixed-synthetic and real-model runs are separate evidence classes. "
+               "Model rosters, duration, generation settings and budgets must match for controlled comparisons.")
+    evidence_class = st.selectbox("Evidence class", sorted(data.evidence_class.unique()))
+    data = data[data.evidence_class == evidence_class]
     evidence = st.selectbox("Backend to compare", sorted(data.backend.unique()))
     data = data[data.backend == evidence]
     metric = st.selectbox("Observable outcome", ["restrictive_per_100_turns",
@@ -253,7 +216,8 @@ def download_bundle(store, run_id):
                    "SELECT seq,state FROM snapshots WHERE run_id=? ORDER BY seq", (run_id,))]}
         archive.writestr("raw.json", json.dumps(raw, ensure_ascii=False, indent=2))
         archive.writestr("metrics.csv", pd.DataFrame(store.metrics(run_id)).to_csv(index=False))
-        archive.writestr("actions.csv", action_frame(store.replay(run_id)).to_csv(index=False))
+        archive.writestr("actions.csv", action_frame(store.replay(run_id),
+            ExperimentConfig.model_validate(store.run(run_id)["config"])).to_csv(index=False))
     return buffer.getvalue()
 
 
@@ -280,7 +244,8 @@ def main():
             if st.session_state.get("selected_run") not in ids:
                 st.session_state["selected_run"] = ids[0]
             st.selectbox("Saved / active experiment", ids, key="selected_run",
-                format_func=lambda x: next((f"{r['config']['condition']} · {r['config']['backend']} · "
+                format_func=lambda x: next((f"{r['config']['condition']} · "
+                    f"{ExperimentConfig.model_validate(r['config']).backend_summary} · "
                     f"{r['status']} · {x[:8]}" for r in runs if r["id"] == x), x[:8]))
         st.button("Refresh notebook")
         st.caption("Mock data tests the software. It cannot test the scientific hypothesis.")
@@ -301,8 +266,9 @@ def main():
             run = None
         if run:
             world = store.replay(selected)
-            if run["config"]["backend"] == "mock":
-                st.caption("Selected experiment: SYNTHETIC MOCK DATA — engineering validation only.")
+            evidence = ExperimentConfig.model_validate(run["config"]).evidence_class
+            if evidence != "llm":
+                st.caption(f"Selected experiment: {evidence.upper()} — contains synthetic fixture decisions.")
             with tabs[2]:
                 profiles(world, ExperimentConfig.model_validate(run["config"]))
             with tabs[3]:

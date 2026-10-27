@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 
 from stanford_ai.metrics.compute import action_frame
+from stanford_ai.models import ExperimentConfig
 
 
 def export_run(store, run_id, directory: str | Path) -> Path:
@@ -18,7 +19,8 @@ def export_run(store, run_id, directory: str | Path) -> Path:
     (out / "raw.json").write_text(json.dumps(raw, indent=2, ensure_ascii=False), encoding="utf-8")
     metrics = store.metrics(run_id)
     (out / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
-    action_frame(store.replay(run_id)).to_csv(out / "actions.csv", index=False)
+    action_frame(store.replay(run_id), ExperimentConfig.model_validate(
+        store.run(run_id)["config"])).to_csv(out / "actions.csv", index=False)
     pd.DataFrame(metrics).to_csv(out / "metrics.csv", index=False)
     pd.DataFrame(store.requests(run_id)).to_csv(out / "requests.csv", index=False)
     return out

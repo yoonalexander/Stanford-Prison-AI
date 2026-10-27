@@ -2,7 +2,7 @@ import json
 from dataclasses import asdict, dataclass
 
 from stanford_ai.agents.prompts import output_format
-from stanford_ai.models import ExperimentConfig
+from stanford_ai.models import ExperimentConfig, ModelProfile
 
 
 class BudgetExhausted(Exception):
@@ -29,15 +29,19 @@ class Ledger:
     def as_dict(self):
         return asdict(self)
 
-    def reserve(self, cfg: ExperimentConfig, prompt: list[dict]) -> Reservation:
+    def reserve(self, cfg: ExperimentConfig, prompt: list[dict],
+                profile: ModelProfile | None = None) -> Reservation:
+        profile = profile or cfg.profile_for("agent_01")
         # A deliberately conservative UTF-8 byte envelope, including schema + wire overhead.
         # No tools, images or hidden conversation state are sent by this backend.
         size = len(json.dumps({"input": prompt, "text": output_format()},
                               ensure_ascii=False).encode("utf-8")) + 4096
-        output = cfg.max_output_tokens
-        cost = (size * cfg.input_usd_per_million + output * cfg.output_usd_per_million) / 1e6
-        if cfg.backend == "mock":
+        output = profile.max_output_tokens
+        cost = (size * profile.input_usd_per_million + output * profile.output_usd_per_million) / 1e6
+        if profile.backend == "mock":
             size, output, cost = 0, 0, 0
+        if profile.backend == "ollama" and size + output > profile.local_context_tokens:
+            raise BudgetExhausted("Local context envelope exceeds num_ctx; increase context or reduce memory explicitly")
         if self.requests + 1 > cfg.max_requests:
             raise BudgetExhausted("Request limit reached")
         if self.accounted_tokens + size + output > cfg.max_tokens:
@@ -50,11 +54,12 @@ class Ledger:
         return Reservation(size, output, cost)
 
     def settle(self, cfg: ExperimentConfig, reservation: Reservation, input_tokens: int,
-               output_tokens: int):
+               output_tokens: int, profile: ModelProfile | None = None):
+        profile = profile or cfg.profile_for("agent_01")
         if input_tokens < 0 or output_tokens < 0:
             raise ValueError("Negative provider usage")
-        cost = (input_tokens * cfg.input_usd_per_million
-                + output_tokens * cfg.output_usd_per_million) / 1e6
+        cost = (input_tokens * profile.input_usd_per_million
+                + output_tokens * profile.output_usd_per_million) / 1e6
         self.input_tokens += input_tokens
         self.output_tokens += output_tokens
         self.estimated_cost_usd += cost

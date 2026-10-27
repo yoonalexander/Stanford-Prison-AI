@@ -2,7 +2,9 @@
 
 A locally runnable research MVP for observing how language-model agents interact under controlled authority structures. Python 3.12+, the official OpenAI SDK, Pydantic, SQLite, Streamlit, Pandas and Plotly. No multi-agent framework.
 
-**Status: engineering MVP, not experimental findings.** The mock backend is a seeded fixture sampler for testing software. No real LLM study has been conducted or claimed. This project is not affiliated with Stanford University and does not involve human participants.
+**Status: engineering MVP, not experimental findings.** Small real local-model runs validate integration; no hypothesis-testing study or substantive findings are claimed. The mock backend is a seeded fixture sampler for testing software. This project is not affiliated with Stanford University and does not involve human participants.
+
+**v0.2 supports a different model per resident**, mixing OpenAI, local Ollama models and OpenAI-compatible endpoints. A homogeneous Ollama run needs no paid API or API key. See [model and per-agent setup](docs/MODEL_BACKENDS.md).
 
 ## Start here (Windows PowerShell)
 
@@ -18,6 +20,16 @@ Open <http://localhost:8501>. Leave **mock**, four residents, two days and two r
 On macOS/Linux use `python3.12` to create the environment and `.venv/bin/python` in place of `.venv\Scripts\python.exe`. Run commands from the repository root. The existing local folder has the spelling `Stanford-Prision-AI`; the public repository uses `Stanford-Prison-AI`.
 
 ## First real LLM simulation
+
+For a free local run with an installed Ollama model:
+
+```powershell
+.venv\Scripts\python.exe -m stanford_ai run --config configs/local_free.yaml
+```
+
+This uses a real local LLM for every resident with a zero API budget; hardware/electricity still have costs. Use `configs/mixed_local.yaml` to mix Gemma and Qwen, or enable **Assign different models to individual agents** in the dashboard. [Full backend instructions](docs/MODEL_BACKENDS.md) cover installation, credentials and compatible endpoints.
+
+For official OpenAI:
 
 Copy `.env.example` to `.env` and set `OPENAI_API_KEY` locally. Alternatively set `$env:OPENAI_API_KEY` in the terminal. Keys are never stored in experiment records or committed. Restart Streamlit after editing `.env`.
 
@@ -72,13 +84,15 @@ Export creates `raw.json` (including all snapshots), `actions.csv`, `requests.cs
 
 Hard request limits include retries. Before each paid call, token and dollar limits must cover a conservative UTF-8 byte envelope for the prompt/schema plus 4096 tokens of overhead, and the full output allowance. Reported usage releases unused capacity; unknown billing keeps the full reservation. The uncached estimate deliberately overestimates cache discounts. Unsupported models, timeouts, missing usage and exhausted budgets stop safely; they do not generate substitute agent actions. Only rate limits and schema-invalid/refused/incomplete outputs receive bounded retries with identical prompts. SDK automatic retries are disabled. Exact actual costs still depend on provider billing and the supplied prices; an application estimate is not a provider-enforced account spending cap. Input token envelopes are conservative engineering bounds rather than a provider token-count guarantee; an unexpected excess is logged and immediately stops the run.
 
+In mixed runs, each request uses the acting resident's rates/output limit, while a shared experiment ledger enforces all limits. Local Ollama records actual tokens with zero API cost; zero dollars does not exempt it from request/token limits. No paid fallback or automatic model download occurs. Model rosters/runtime digests are observer metadata, not agent prompt data.
+
 Memory compression deterministically folds older visible outcomes into action/success counts while retaining the configured number of recent detailed memories. Full raw history remains in SQLite. This is lossy compression, not an LLM-generated autobiographical summary. A seed reproduces initialization, order and mock decisions, **not real LLM outputs**.
 
 If the process is killed, its run may remain `running`. After confirming the original process is gone, use `stanford-ai recover RUN_ID` to mark it interrupted and retain unknown reservations. It does not resume or replay API calls. Automatic continuation after a crash is intentionally unsupported.
 
 ## Analysis and interpretation
 
-Analytics show restrictive actions, cooperation/conflict, rules, daily allocation inequality, group and individual activity, and initial/later periods. Comparisons show individual run points, box distributions and variability. For complete matched A/B/C/D seed blocks, the dashboard reports exploratory authority/label/interaction contrasts with a run-block bootstrap interval. It rejects mixed generation, memory, budget, size, duration, backend or model settings for these contrasts. Single-block intervals are omitted. Rows/turns are not independent experimental replications.
+Analytics show restrictive actions, cooperation/conflict, rules, daily allocation inequality, group and individual activity, and initial/later periods. Comparisons show individual run points, box distributions and variability. For complete matched A/B/C/D seed blocks, the dashboard reports exploratory authority/label/interaction contrasts with a run-block bootstrap interval. It rejects mismatched generation, memory, budget, size, duration, backend, model roster, prompt version or local runtime identity for these contrasts. Single-block intervals are omitted. Rows/turns are not independent experimental replications.
 
 The [behaviour rubric](docs/BEHAVIOUR_RUBRIC.md) defines every proxy. “Authoritarian” is a repeated restrictive-action descriptor, not evidence of motives or consciousness. The MVP uses no LLM judge and makes no language-based abuse claims. See [RESEARCH_DESIGN.md](RESEARCH_DESIGN.md) for confounders, preregistration guidance and limitations, and [FUTURE_RESEARCH.md](FUTURE_RESEARCH.md) for publication-oriented work.
 

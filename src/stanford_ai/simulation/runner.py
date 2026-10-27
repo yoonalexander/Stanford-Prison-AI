@@ -10,7 +10,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from stanford_ai import __version__
-from stanford_ai.agents.backends import BackendFailure, MockBackend, OpenAIBackend
+from stanford_ai.agents.backends import BackendFailure, BackendRouter
 from stanford_ai.agents.prompts import PROMPT_VERSION, messages, output_format
 from stanford_ai.environment.engine import Engine
 from stanford_ai.environment.permissions import matrix
@@ -39,7 +39,9 @@ def provenance(config: ExperimentConfig) -> dict:
             "response_format": output_format(),
             "generation_parameters": {"temperature": config.temperature,
                                       "max_output_tokens": config.max_output_tokens},
-            "mock_is_synthetic": config.backend == "mock"}
+            "resolved_agent_models": config.resolved_models(),
+            "evidence_class": config.evidence_class,
+            "mock_is_synthetic": config.evidence_class != "llm"}
 
 
 class Runner:
@@ -52,12 +54,17 @@ class Runner:
 
     def run(self, on_event=None, should_stop=None) -> str:
         cfg = self.config
-        self.store.create(self.run_id, cfg.model_dump(mode="json"), provenance(cfg),
+        metadata = provenance(cfg)
+        self.store.create(self.run_id, cfg.model_dump(mode="json"), metadata,
                           self.engine.world, self.ledger.as_dict())
         status, reason = "completed", None
+        router = None
         try:
-            backend = self.backend or (MockBackend(cfg.seed) if cfg.backend == "mock"
-                                       else OpenAIBackend(cfg))
+            if self.backend is None:
+                router = BackendRouter(cfg)
+                router.prepare()
+                metadata["runtime_models"] = router.runtime_info
+                self.store.update_provenance(self.run_id, metadata)
             for day in range(1, cfg.days + 1):
                 before = snapshot(self.engine.world)
                 event = self.engine.begin_day(day)
@@ -72,6 +79,7 @@ class Runner:
                         before = snapshot(self.engine.world)
                         self.engine.world.round = round_
                         prompt = messages(cfg, self.engine.world, actor)
+                        backend = self.backend if self.backend is not None else router.for_agent(actor)
                         action = self._decide(backend, prompt, actor)
                         event = self.engine.apply(actor, action)
                         self._persist(event, before, on_event)
@@ -86,6 +94,8 @@ class Runner:
             raise
         finally:
             self.store.status(self.run_id, status, reason, self.ledger.as_dict())
+            if router:
+                router.close()
         return self.run_id
 
     def _persist(self, event, before, callback):
@@ -95,11 +105,13 @@ class Runner:
 
     def _decide(self, backend, prompt, actor) -> Action:
         cfg = self.config
+        profile = cfg.profile_for(actor)
+        identity = profile.model_dump(mode="json") | {"profile": cfg.agent_models.get(actor, "default")}
         for attempt in range(cfg.max_retries + 1):
-            reservation = self.ledger.reserve(cfg, prompt)
+            reservation = self.ledger.reserve(cfg, prompt, profile)
             ordinal = self.ledger.requests
             self.store.start_request(self.run_id, ordinal, actor, self.engine.world.day,
-                                     self.engine.world.round, prompt, asdict(reservation),
+                                     self.engine.world.round, prompt, asdict(reservation) | {"model": identity},
                                      self.ledger.as_dict())
             result = {}
             retryable = False
@@ -108,14 +120,14 @@ class Runner:
             except BaseException as exc:
                 # No usage returned: retain the full reservation instead of assuming zero billing.
                 self.ledger.unknown_usage_requests += 1
-                result = {"status": "transport_error", "error_type": type(exc).__name__,
+                result = {"status": "transport_error", "error_type": type(exc).__name__, "model": identity,
                           "usage_unknown": True}
                 self.store.finish_request(self.run_id, ordinal, result, self.ledger.as_dict())
                 if isinstance(exc, BackendFailure) and exc.retryable and attempt < cfg.max_retries:
                     time.sleep(min(30, cfg.retry_delay_seconds * 2**attempt))
                     continue
                 raise
-            result = {"raw": completion.raw, "text": completion.text,
+            result = {"raw": completion.raw, "text": completion.text, "model": identity,
                       "input_tokens": completion.input_tokens, "output_tokens": completion.output_tokens,
                       "usage_unknown": False}
             if completion.input_tokens is None or completion.output_tokens is None:
@@ -124,7 +136,7 @@ class Runner:
                 self.store.finish_request(self.run_id, ordinal, result, self.ledger.as_dict())
                 raise BackendFailure("Provider returned no usage; billing status unknown")
             try:
-                self.ledger.settle(cfg, reservation, completion.input_tokens, completion.output_tokens)
+                self.ledger.settle(cfg, reservation, completion.input_tokens, completion.output_tokens, profile)
                 action = Action.model_validate_json(completion.text, strict=True)
                 result.update(status="parsed", structured_action=action.model_dump(mode="json"))
             except ValidationError as exc:

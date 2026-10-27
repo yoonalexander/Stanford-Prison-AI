@@ -81,6 +81,11 @@ class Store:
             self.db.execute("UPDATE runs SET status=?,reason=?,usage=?,updated_at=? WHERE id=?",
                             (status, reason, encode(usage), now(), run_id))
 
+    def update_provenance(self, run_id, provenance):
+        with self.db:
+            self.db.execute("UPDATE runs SET provenance=?,updated_at=? WHERE id=?",
+                            (encode(provenance), now(), run_id))
+
     def start_request(self, run_id, ordinal, agent_id, day, round_, prompt, reservation, usage):
         with self.db:
             self.db.execute("INSERT INTO requests VALUES (?,?,?,?,?,?,?,?,?,?)", (

@@ -4,7 +4,7 @@ from collections import Counter
 
 import pandas as pd
 
-from stanford_ai.models import World
+from stanford_ai.models import ExperimentConfig, World
 
 RUBRIC_VERSION = "1.0"
 RESTRICTIVE = {"restrict_access", "approve_rule"}
@@ -115,21 +115,24 @@ def measure(world: World) -> dict:
     }
 
 
-def action_frame(world: World) -> pd.DataFrame:
+def action_frame(world: World, config: ExperimentConfig | None = None) -> pd.DataFrame:
     rows = []
     classifications = classification_map(world)
     for e in world.history:
         if e.get("action"):
             a = e["action"]
+            identity = config.profile_for(e["actor"]) if config else None
             rows.append({k: e[k] for k in ("id", "day", "round", "actor", "group", "success", "effect")}
                         | {"action": a["kind"], "target": a["target"], "message": a["message"],
                            "private": a["private"], "restrictive": int(is_restrictive(e, world)),
                            "cooperative": int(e["success"] and a["kind"] in COOPERATIVE),
                            "resistant": int(e["success"] and a["kind"] in RESISTANT),
-                           "classifications": ", ".join(classifications[e["id"]])})
+                           "classifications": ", ".join(classifications[e["id"]]),
+                           "backend": identity.backend if identity else None,
+                           "model": identity.model if identity else None})
     return pd.DataFrame(rows, columns=["id", "day", "round", "actor", "group", "success", "effect",
                                       "action", "target", "message", "private", "restrictive",
-                                      "cooperative", "resistant", "classifications"])
+                                      "cooperative", "resistant", "classifications", "backend", "model"])
 
 
 def compare_runs(store, run_ids: list[str]) -> pd.DataFrame:
@@ -141,10 +144,14 @@ def compare_runs(store, run_ids: list[str]) -> pd.DataFrame:
         if not metrics:
             continue
         cfg, final = run["config"], metrics[-1]
+        config = ExperimentConfig.model_validate(cfg)
         controls = {k: v for k, v in cfg.items() if k not in {"condition", "seed"}}
+        controls["prompt_version"] = run["provenance"].get("prompt_version")
+        controls["runtime_models"] = run["provenance"].get("runtime_models")
         attempts = final["attempts"]
-        rows.append({"run_id": run_id, "condition": cfg["condition"], "backend": cfg["backend"],
-                     "model": cfg["model"], "seed": cfg["seed"], "status": run["status"],
+        rows.append({"run_id": run_id, "condition": cfg["condition"], "backend": config.backend_summary,
+                     "model": config.model_summary, "evidence_class": config.evidence_class,
+                     "seed": cfg["seed"], "status": run["status"],
                      "labels": "explicit" if cfg["condition"] in ("A", "C") else "neutral",
                      "authority": "unequal" if cfg["condition"] in ("A", "B") else "equal",
                      "days": cfg["days"], "n_agents": cfg["n_agents"],

@@ -22,9 +22,12 @@ def main():
     for name, typ in [("condition", str), ("backend", str), ("model", str), ("n-agents", int),
                       ("days", int), ("rounds-per-day", int), ("seed", int), ("max-requests", int),
                       ("max-tokens", int), ("budget-usd", float), ("input-usd-per-million", float),
-                      ("output-usd-per-million", float), ("max-output-tokens", int)]:
+                      ("output-usd-per-million", float), ("max-output-tokens", int),
+                      ("base-url", str), ("api-key-env", str), ("output-mode", str),
+                      ("token-limit-field", str), ("local-context-tokens", int), ("timeout-seconds", float)]:
         run.add_argument(f"--{name}", type=typ)
     run.add_argument("--confirm-pricing", action="store_true", default=None)
+    run.add_argument("--agent-models", help="JSON agent ID -> profile name (profiles defined in YAML)")
     run.add_argument("--repeats", type=int, default=1, help="Each repeat has its OWN budget; increments seed")
     export = sub.add_parser("export")
     export.add_argument("run_id")
@@ -46,6 +49,8 @@ def main():
                          and v is not None}
             if args.confirm_pricing:
                 overrides["pricing_confirmed"] = True
+            if args.agent_models:
+                overrides["agent_models"] = json.loads(args.agent_models)
             cfg = load_config(args.config, **overrides) if args.config else ExperimentConfig(**overrides)
             for repeat in range(args.repeats):
                 config = ExperimentConfig.model_validate(cfg.model_dump() | {"seed": cfg.seed + repeat})
@@ -61,7 +66,8 @@ def main():
             print(store.replay(args.run_id, args.seq).model_dump_json(indent=2))
         elif args.command == "list":
             for r in store.runs():
-                print(r["id"], r["status"], r["config"]["condition"], r["config"]["backend"])
+                config = ExperimentConfig.model_validate(r["config"])
+                print(r["id"], r["status"], config.condition, config.backend_summary, config.model_summary)
         elif args.command == "compare":
             print(compare_runs(store, args.run_ids).to_csv(index=False))
         elif args.command == "recover":

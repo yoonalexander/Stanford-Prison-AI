@@ -1,0 +1,28 @@
+# Two different real, installed local models. Model mappings are independent of randomized groups.
+condition: B
+config_version: '1.1'
+backend: ollama
+model: gemma3:4b
+n_agents: 4
+days: 1
+rounds_per_day: 1
+seed: 42
+budget_usd: 0
+max_requests: 12
+max_tokens: 250000
+model_profiles:
+  gemma:
+    backend: ollama
+    model: gemma3:4b
+    temperature: 0.7
+    max_output_tokens: 400
+  qwen:
+    backend: ollama
+    model: qwen3.5:4b
+    temperature: 0.7
+    max_output_tokens: 400
+agent_models:
+  agent_01: gemma
+  agent_02: qwen
+  agent_03: gemma
+  agent_04: qwen
